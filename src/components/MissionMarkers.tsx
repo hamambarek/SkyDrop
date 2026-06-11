@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/immutability -- three.js objects are mutated in-place per frame by design */
 import { useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { runtime } from '../game/runtime'
 import { currentTarget, useGame } from '../state/store'
@@ -60,6 +60,8 @@ function DeliveryBurst() {
   )
 }
 
+const camSpace = new THREE.Vector3()
+
 export function MissionMarkers() {
   const beacon = useRef<THREE.Group>(null!)
   const ring = useRef<THREE.Mesh>(null!)
@@ -70,11 +72,39 @@ export function MissionMarkers() {
   const phase = useGame(s => s.phase)
   const stopIndex = useGame(s => s.stopIndex)
 
+  // clear the screen-space target when no mission is active
+  useEffect(() => {
+    if (!mission) runtime.targetScreen.active = false
+    return () => {
+      runtime.targetScreen.active = false
+    }
+  }, [mission])
+
   useFrame(state => {
     if (!mission) return
     const t = state.clock.elapsedTime
     const target = currentTarget({ activeMission: mission, phase, stopIndex })
     if (!target) return
+
+    // project the beacon into camera space for the HUD edge arrow
+    camSpace.set(target[0], target[1] + 2, target[2]).applyMatrix4(state.camera.matrixWorldInverse)
+    const behind = camSpace.z > 0
+    const depth = Math.max(0.001, -camSpace.z)
+    const cam = state.camera as THREE.PerspectiveCamera
+    const halfH = Math.tan((cam.fov * Math.PI) / 360) * depth
+    const halfW = halfH * cam.aspect
+    const nx = camSpace.x / halfW // normalized device-ish coords
+    const ny = camSpace.y / halfH
+    const ts = runtime.targetScreen
+    ts.active = true
+    ts.off = behind || Math.abs(nx) > 0.92 || Math.abs(ny) > 0.92
+    // direction the HUD arrow should point (DOM y grows downward)
+    ts.dx = camSpace.x
+    ts.dy = -camSpace.y
+    if (behind) {
+      // behind the camera: horizontal cue dominates so the player turns the right way
+      ts.dx = camSpace.x >= 0 ? Math.max(0.4, Math.abs(camSpace.x)) : Math.min(-0.4, -Math.abs(camSpace.x))
+    }
     const isPickup = phase === 'toPickup'
     const color = isPickup ? '#39c2ff' : '#2bffc8'
 

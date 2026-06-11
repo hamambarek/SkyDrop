@@ -250,9 +250,11 @@ export function stepSimulation(dt: number) {
       } else if (dx < dz) {
         p.x = p.x - minX < maxX - p.x ? minX : maxX
         runtime.vel.x *= -0.25
+        runtime.shake = Math.max(runtime.shake, Math.min(0.45, impact * 0.025))
       } else {
         p.z = p.z - minZ < maxZ - p.z ? minZ : maxZ
         runtime.vel.z *= -0.25
+        runtime.shake = Math.max(runtime.shake, Math.min(0.45, impact * 0.025))
       }
     }
   }

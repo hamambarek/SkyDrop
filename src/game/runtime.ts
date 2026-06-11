@@ -45,6 +45,8 @@ export interface Runtime {
   boostHeat: number // 0..1 visual thruster heat
   cameraMode: CameraMode
   lastRingId: number // last speed ring passed (debounce)
+  /** Current beacon target projected to screen space (written by the renderer each frame). */
+  targetScreen: { dx: number; dy: number; off: boolean; active: boolean }
 }
 
 export const runtime: Runtime = {
@@ -75,6 +77,7 @@ export const runtime: Runtime = {
   boostHeat: 0,
   cameraMode: 'chase',
   lastRingId: -1,
+  targetScreen: { dx: 0, dy: 0, off: false, active: false },
 }
 
 export function resetRuntimeAt(x: number, y: number, z: number, yaw = 0) {

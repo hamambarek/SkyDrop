@@ -3,3 +3,4 @@ dist
 server/.env
 .playwright-mcp
 *.jpeg
+.vercel

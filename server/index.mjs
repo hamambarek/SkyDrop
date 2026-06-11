@@ -1,5 +1,6 @@
-// SkyDrop API — accounts, cloud saves, leaderboard.
-// Run with: npm run server   (reads server/.env)
+// SkyDrop API — accounts, cloud saves, leaderboards, trial times.
+// Local: npm run server (reads server/.env)
+// Vercel: exported app is wrapped by api/index.mjs (env from project settings)
 
 import 'dotenv/config'
 import express from 'express'
@@ -20,9 +21,10 @@ if (!DATABASE_URL || !JWT_SECRET) {
   process.exit(1)
 }
 
-const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 8 })
+// modest pool: serverless instances each hold a couple of connections
+const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 4 })
 
-async function migrate() {
+export async function migrate() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -191,11 +193,16 @@ app.get('/api/leaderboard', async (_req, res) => {
   res.json({ leaderboard: rows })
 })
 
-migrate()
-  .then(() => {
-    app.listen(PORT, () => console.log(`SkyDrop API listening on :${PORT}`))
-  })
-  .catch(e => {
-    console.error('Migration failed:', e)
-    process.exit(1)
-  })
+export { app }
+
+// standalone mode: `node server/index.mjs` (skipped when imported by api/index.mjs)
+if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+  migrate()
+    .then(() => {
+      app.listen(PORT, () => console.log(`SkyDrop API listening on :${PORT}`))
+    })
+    .catch(e => {
+      console.error('Migration failed:', e)
+      process.exit(1)
+    })
+}

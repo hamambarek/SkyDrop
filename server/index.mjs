@@ -122,13 +122,65 @@ app.put('/api/save', auth, async (req, res) => {
 
 // ---- competitive time trials ----
 
+import { TRIAL_ROUTES } from '../shared/trial-routes.mjs'
+
+const MAX_PLAUSIBLE_SPEED = 100 // m/s between samples (boost + rings + wind headroom)
+const WAYPOINT_RADIUS = 11 // capture radius is 6.5m; samples are 0.5s apart
+const dist3 = (ax, ay, az, b) => Math.hypot(ax - b[0], ay - b[1], az - b[2])
+
+/**
+ * Anti-cheat: verify the submitted flight trace actually flew the course.
+ * Returns null when valid, otherwise a human-readable rejection reason.
+ */
+function validateTrialRun(trialId, ms, trace) {
+  const route = TRIAL_ROUTES[trialId]
+  if (!route) return 'Unknown trial'
+  if (!Array.isArray(trace) || trace.length < 8 || trace.length > 2000) return 'Missing or malformed flight trace'
+  for (const s of trace) {
+    if (!Array.isArray(s) || s.length !== 4 || s.some(v => !Number.isFinite(v))) return 'Corrupt trace sample'
+  }
+  // clock consistency: trace timeline must match the claimed time
+  if (trace[0][0] > 3) return 'Trace starts too late'
+  if (Math.abs(trace[trace.length - 1][0] - ms / 1000) > 3) return 'Trace clock does not match the submitted time'
+  // physics plausibility between samples
+  let total = 0
+  for (let i = 1; i < trace.length; i++) {
+    const [t0, x0, y0, z0] = trace[i - 1]
+    const [t1, x1, y1, z1] = trace[i]
+    const dt = t1 - t0
+    if (dt <= 0 || dt > 4) return 'Non-monotonic trace timeline'
+    const d = Math.hypot(x1 - x0, y1 - y0, z1 - z0)
+    if (d / dt > MAX_PLAUSIBLE_SPEED) return 'Teleportation detected'
+    total += d
+  }
+  if (total / (ms / 1000) > 80) return 'Average speed beyond drone limits'
+  // run must begin near the launch pad
+  if (dist3(trace[0][1], trace[0][2], trace[0][3], route.pickup) > 70) return 'Run did not start at the launch zone'
+  // ordered waypoint passes: pickup, then every stop, in sequence
+  const waypoints = [route.pickup, ...route.stops]
+  let idx = 0
+  for (const wp of waypoints) {
+    let passed = false
+    for (; idx < trace.length; idx++) {
+      if (dist3(trace[idx][1], trace[idx][2], trace[idx][3], wp) <= WAYPOINT_RADIUS) {
+        passed = true
+        break
+      }
+    }
+    if (!passed) return 'Route checkpoint missed — the course was not flown'
+  }
+  return null
+}
+
 app.post('/api/trials', auth, async (req, res) => {
   try {
-    const { trialId, ms } = req.body ?? {}
+    const { trialId, ms, trace } = req.body ?? {}
     if (typeof trialId !== 'string' || !/^trial-[a-z]+$/.test(trialId))
       return res.status(400).json({ error: 'Bad trial id' })
     if (!Number.isFinite(ms) || ms < 8000 || ms > 3_600_000)
       return res.status(400).json({ error: 'Implausible time' })
+    const reason = validateTrialRun(trialId, ms, trace)
+    if (reason) return res.status(422).json({ error: `Run rejected: ${reason}` })
     const time = Math.round(ms)
     await pool.query(
       `INSERT INTO trial_times (user_id, trial_id, ms) VALUES ($1, $2, $3)

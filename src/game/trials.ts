@@ -1,9 +1,8 @@
 // TIME TRIALS — fixed competitive courses. Same route for every player,
 // a required drone frame, brutal modifiers, and one metric: the clock.
 
+import { TRIAL_ROUTES } from '../../shared/trial-routes.mjs'
 import { type DistrictId } from './constants'
-import { hashString, mulberry32 } from './rng'
-import { CITY, type Pad } from './city'
 import type { Mission } from './missions'
 
 export interface TrialDef {
@@ -83,41 +82,18 @@ export const TRIALS: TrialDef[] = [
   },
 ]
 
-function distance(a: Pad, b: Pad) {
-  return Math.hypot(a.x - b.x, a.z - b.z, a.y - b.y)
-}
-
-/** Deterministic course: every player flies the exact same pads in the same order. */
+/**
+ * Fixed courses from the shared route table — the SAME coordinates the server
+ * uses to validate submitted runs, so client and anti-cheat can never drift.
+ */
 export function trialToMission(def: TrialDef): Mission {
-  const rng = mulberry32(hashString(`trial-route-${def.id}`))
-  const pads = CITY.pads.filter(p => p.district === def.district)
-
-  // pickup + first drop: longest pair found in a fixed sample
-  let best: { a: Pad; b: Pad; d: number } | null = null
-  const good: { a: Pad; b: Pad; d: number }[] = []
-  for (let i = 0; i < 60; i++) {
-    const a = pads[Math.floor(rng() * pads.length)]
-    const b = pads[Math.floor(rng() * pads.length)]
-    if (a.id === b.id) continue
-    const d = distance(a, b)
-    if (!best || d > best.d) best = { a, b, d }
-    if (d >= def.minLeg) good.push({ a, b, d })
-  }
-  const pair = good.length ? good[Math.floor(rng() * good.length)] : best!
-  const drops: Pad[] = [pair.b]
-  let prev = pair.b
-  for (let s = 1; s < def.stops; s++) {
-    let far: Pad | null = null
-    for (let i = 0; i < 30; i++) {
-      const next = pads[Math.floor(rng() * pads.length)]
-      if (next.id === prev.id || next.id === pair.a.id || drops.some(x => x.id === next.id)) continue
-      if (!far || distance(prev, next) > distance(prev, far)) far = next
-    }
-    drops.push(far ?? pads[0])
-    prev = drops[drops.length - 1]
-  }
-
-  const dist = drops.reduce((acc, p, i) => acc + distance(i === 0 ? pair.a : drops[i - 1], p), 0)
+  const route = TRIAL_ROUTES[def.id as keyof typeof TRIAL_ROUTES]
+  const pickup = route.pickup as [number, number, number]
+  const stops = route.stops as [number, number, number][]
+  const dist = stops.reduce((acc, p, i) => {
+    const q = i === 0 ? pickup : stops[i - 1]
+    return acc + Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2])
+  }, 0)
 
   return {
     id: def.id,
@@ -126,9 +102,9 @@ export function trialToMission(def: TrialDef): Mission {
     title: `TRIAL: ${def.name}`,
     brief: def.desc,
     district: def.district,
-    pickup: [pair.a.x, pair.a.y, pair.a.z],
-    stops: drops.map(p => [p.x, p.y, p.z] as [number, number, number]),
-    dropoff: [drops[drops.length - 1].x, drops[drops.length - 1].y, drops[drops.length - 1].z],
+    pickup,
+    stops,
+    dropoff: stops[stops.length - 1],
     cargoWeight: def.cargoWeight,
     reward: Math.round(150 + dist * 0.3), // modest fixed pay — the clock is the prize
     xp: Math.round(120 + dist * 0.2),

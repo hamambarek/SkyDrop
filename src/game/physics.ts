@@ -8,7 +8,7 @@ import {
   PICKUP_RADIUS, RESPAWN_DELAY, RING_BOOST, WEATHERS, WORLD_HALF, type WeatherId,
 } from './constants'
 import { droneById } from './cosmetics'
-import { pollInput, runtime } from './runtime'
+import { pollInput, runtime, trialTrace } from './runtime'
 import { engineUpdate, sfx } from './sfx'
 import { currentTarget, useGame } from '../state/store'
 
@@ -335,6 +335,18 @@ export function stepSimulation(dt: number) {
 
   // mission progress ----------------------------------------------------------
   runtime.missionClock += dt
+  // trial telemetry: ~2Hz position samples for server-side run validation
+  if (m?.trialId && trialTrace.length < 2000) {
+    const last = trialTrace[trialTrace.length - 1]
+    if (!last || runtime.missionClock - last[0] >= 0.5) {
+      trialTrace.push([
+        Math.round(runtime.missionClock * 100) / 100,
+        Math.round(runtime.pos.x * 10) / 10,
+        Math.round(runtime.pos.y * 10) / 10,
+        Math.round(runtime.pos.z * 10) / 10,
+      ])
+    }
+  }
   if (m) {
     const target = currentTarget(st)!
     const d = Math.hypot(runtime.pos.x - target[0], runtime.pos.y - (target[1] + 2), runtime.pos.z - target[2])

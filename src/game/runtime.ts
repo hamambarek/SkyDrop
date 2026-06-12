@@ -80,6 +80,14 @@ export const runtime: Runtime = {
   targetScreen: { dx: 0, dy: 0, off: false, active: false },
 }
 
+// Flight trace recorded during time trials — submitted with the time so the
+// server can verify the route was actually flown. [t, x, y, z] per sample.
+export const trialTrace: number[][] = []
+
+export function resetTrialTrace() {
+  trialTrace.length = 0
+}
+
 export function resetRuntimeAt(x: number, y: number, z: number, yaw = 0) {
   runtime.pos.set(x, y, z)
   runtime.vel.set(0, 0, 0)

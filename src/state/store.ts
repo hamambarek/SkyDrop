@@ -13,7 +13,7 @@ import {
 } from '../game/cosmetics'
 import { FACTION_LIST, repPayBonus, type FactionId } from '../game/factions'
 import { generateDailies, generateOffers, nextStoryMission, todayKey, type Mission } from '../game/missions'
-import { runtime } from '../game/runtime'
+import { resetTrialTrace, runtime, trialTrace } from '../game/runtime'
 import { setMuted as setSfxMuted, sfx } from '../game/sfx'
 import { CHAPTERS } from '../game/story'
 import type { ThemeId } from '../game/themes'
@@ -368,6 +368,7 @@ export const useGame = create<Store>()(
       startMission: m => {
         const st = get()
         placeDroneForMission(m)
+        resetTrialTrace()
         const intro = m.chapterId != null && !st.seenIntros.includes(m.chapterId) ? m.chapterId : null
         set({
           screen: 'game',
@@ -455,7 +456,7 @@ export const useGame = create<Store>()(
           const token = get().authToken
           if (token) {
             api
-              .submitTrial(token, m.trialId, ms)
+              .submitTrial(token, m.trialId, ms, trialTrace.map(p => [...p]))
               .then(r => {
                 // the server's stored best is authoritative — heals stale local bests
                 const tb = get().trialBest
@@ -463,7 +464,9 @@ export const useGame = create<Store>()(
                 const cur = get().result
                 if (cur?.trialMs === ms) set({ result: { ...cur, trialRank: { rank: r.rank, total: r.total } } })
               })
-              .catch(() => {})
+              .catch(e => {
+                if (e instanceof ApiError && e.status === 422) get().toast(`🚫 ${e.message}`, 'bad')
+              })
           }
           get().checkAchievements()
           return

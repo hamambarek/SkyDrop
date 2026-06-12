@@ -375,7 +375,7 @@ h1, h2, h3 {
 }
 .hud-mission .dist {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: 26px;
   color: var(--mint);
   margin-top: 2px;
 }
@@ -1655,7 +1655,7 @@ h1, h2, h3 {
 }
 .console-num b {
   font-family: var(--font-display);
-  font-size: 26px;
+  font-size: 30px;
   line-height: 1;
   color: var(--text);
 }

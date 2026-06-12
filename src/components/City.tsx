@@ -15,13 +15,13 @@ import { CityExtras } from './CityExtras'
 function makeWindowTexture(): THREE.CanvasTexture {
   const rng = mulberry32(818)
   const c = document.createElement('canvas')
-  c.width = 128
-  c.height = 256
+  c.width = 256
+  c.height = 512
   const g = c.getContext('2d')!
   g.fillStyle = '#000'
   g.fillRect(0, 0, c.width, c.height)
-  const cols = 6
-  const rows = 18
+  const cols = 7
+  const rows = 22
   const cw = c.width / cols
   const ch = c.height / rows
   const colors = ['#ffd9a0', '#a0d8ff', '#fff2cc', '#7fe7ff']
@@ -30,7 +30,7 @@ function makeWindowTexture(): THREE.CanvasTexture {
       if (rng() < 0.42) {
         g.fillStyle = colors[Math.floor(rng() * colors.length)]
         g.globalAlpha = 0.5 + rng() * 0.5
-        g.fillRect(x * cw + 2, y * ch + 2, cw - 4, ch - 4)
+        g.fillRect(x * cw + 3, y * ch + 3, cw - 6, ch - 6)
       }
     }
   }
@@ -41,7 +41,7 @@ function makeWindowTexture(): THREE.CanvasTexture {
 }
 
 function makeGroundTexture(): THREE.CanvasTexture {
-  const size = 2048
+  const size = 4096
   const worldSpan = (WORLD_HALF + 60) * 2
   const c = document.createElement('canvas')
   c.width = size
@@ -119,7 +119,7 @@ function makeGroundTexture(): THREE.CanvasTexture {
 
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
-  tex.anisotropy = 4
+  tex.anisotropy = 8
   return tex
 }
 

@@ -92,7 +92,7 @@ export function MainMenu() {
         </button>
       </div>
 
-      <div className="version-chip">SKYDROP v2.5 · NEON TIDE</div>
+      <div className="version-chip">SKYDROP v2.6 · NEON TIDE</div>
       <div className="hint-keys hint-right">
         <kbd>W</kbd>
         <kbd>A</kbd>

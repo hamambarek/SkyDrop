@@ -48,10 +48,12 @@ export const api = {
   putSave: (token: string, save: Record<string, unknown>) =>
     request<{ ok: boolean }>('/api/save', { method: 'PUT', body: JSON.stringify({ save }) }, token),
   leaderboard: () => request<{ leaderboard: LeaderboardRow[] }>('/api/leaderboard'),
-  submitTrial: (token: string, trialId: string, ms: number, trace: number[][]) =>
-    request<{ best: number; rank: number; total: number }>(
+  startTrialRun: (token: string, trialId: string) =>
+    request<{ nonce: string }>('/api/trials/start', { method: 'POST', body: JSON.stringify({ trialId }) }, token),
+  submitTrial: (token: string, trialId: string, ms: number, trace: number[][], nonce: string | null) =>
+    request<{ best: number; rank: number | null; total: number; flagged: boolean }>(
       '/api/trials',
-      { method: 'POST', body: JSON.stringify({ trialId, ms, trace }) },
+      { method: 'POST', body: JSON.stringify({ trialId, ms, trace, nonce }) },
       token
     ),
   trialSummary: (token?: string | null) =>

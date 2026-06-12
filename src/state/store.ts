@@ -92,6 +92,7 @@ interface SessionSlice {
   burst: DeliveryBurst | null // delivery success particle burst
   syncStatus: 'idle' | 'syncing' | 'synced' | 'error'
   authBusy: boolean
+  trialNonce: string | null // server-issued run token for the active trial
   hud: {
     battery: number
     speed: number
@@ -197,6 +198,7 @@ const initialSession: SessionSlice = {
   burst: null,
   syncStatus: 'idle',
   authBusy: false,
+  trialNonce: null,
   hud: {
     battery: 100, speed: 0, alt: 0, dist: 0,
     weather: 'Clear Night', weatherIcon: '🌙', charging: false,
@@ -369,6 +371,14 @@ export const useGame = create<Store>()(
         const st = get()
         placeDroneForMission(m)
         resetTrialTrace()
+        // trials: ask the server for a single-use run token (anti-cheat)
+        set({ trialNonce: null })
+        if (m.trialId && st.authToken) {
+          api
+            .startTrialRun(st.authToken, m.trialId)
+            .then(r => set({ trialNonce: r.nonce }))
+            .catch(() => {})
+        }
         const intro = m.chapterId != null && !st.seenIntros.includes(m.chapterId) ? m.chapterId : null
         set({
           screen: 'game',
@@ -456,13 +466,17 @@ export const useGame = create<Store>()(
           const token = get().authToken
           if (token) {
             api
-              .submitTrial(token, m.trialId, ms, trialTrace.map(p => [...p]))
+              .submitTrial(token, m.trialId, ms, trialTrace.map(p => [...p]), get().trialNonce)
               .then(r => {
                 // the server's stored best is authoritative — heals stale local bests
                 const tb = get().trialBest
                 if (tb[m.trialId!] !== r.best) set({ trialBest: { ...tb, [m.trialId!]: r.best } })
-                const cur = get().result
-                if (cur?.trialMs === ms) set({ result: { ...cur, trialRank: { rank: r.rank, total: r.total } } })
+                if (r.flagged) {
+                  get().toast('🕵 Time flagged for review — extreme outlier check', 'bad')
+                } else if (r.rank != null) {
+                  const cur = get().result
+                  if (cur?.trialMs === ms) set({ result: { ...cur, trialRank: { rank: r.rank, total: r.total } } })
+                }
               })
               .catch(e => {
                 if (e instanceof ApiError && e.status === 422) get().toast(`🚫 ${e.message}`, 'bad')

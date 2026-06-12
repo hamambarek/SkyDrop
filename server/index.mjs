@@ -8,6 +8,7 @@ import cors from 'cors'
 import pg from 'pg'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { config as loadEnv } from 'dotenv'
@@ -15,7 +16,7 @@ import { config as loadEnv } from 'dotenv'
 // also load server/.env when started from the repo root
 loadEnv({ path: join(dirname(fileURLToPath(import.meta.url)), '.env') })
 
-const { DATABASE_URL, JWT_SECRET, PORT = 8787 } = process.env
+const { DATABASE_URL, JWT_SECRET, ADMIN_KEY, PORT = 8787 } = process.env
 if (!DATABASE_URL || !JWT_SECRET) {
   console.error('Missing DATABASE_URL or JWT_SECRET (see server/.env.example)')
   process.exit(1)
@@ -46,6 +47,13 @@ export async function migrate() {
       PRIMARY KEY (user_id, trial_id)
     );
     CREATE INDEX IF NOT EXISTS trial_times_board_idx ON trial_times (trial_id, ms ASC);
+    ALTER TABLE trial_times ADD COLUMN IF NOT EXISTS flagged BOOLEAN NOT NULL DEFAULT false;
+    CREATE TABLE IF NOT EXISTS trial_nonces (
+      nonce TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      trial_id TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `)
 }
 
@@ -172,32 +180,130 @@ function validateTrialRun(trialId, ms, trace) {
   return null
 }
 
-app.post('/api/trials', auth, async (req, res) => {
+/** Theoretical course minimum: route length at an unreachable 55 m/s average. */
+function courseFloorMs(trialId) {
+  const r = TRIAL_ROUTES[trialId]
+  let d = 0
+  let prev = r.pickup
+  for (const s of r.stops) {
+    d += Math.hypot(s[0] - prev[0], s[1] - prev[1], s[2] - prev[2])
+    prev = s
+  }
+  return (d / 55) * 1000
+}
+
+// Per-run token: issued when a trial starts, single-use, and the claimed run
+// time can never exceed the real wall-clock window it was flown in.
+app.post('/api/trials/start', auth, async (req, res) => {
   try {
-    const { trialId, ms, trace } = req.body ?? {}
-    if (typeof trialId !== 'string' || !/^trial-[a-z]+$/.test(trialId))
-      return res.status(400).json({ error: 'Bad trial id' })
-    if (!Number.isFinite(ms) || ms < 8000 || ms > 3_600_000)
-      return res.status(400).json({ error: 'Implausible time' })
-    const reason = validateTrialRun(trialId, ms, trace)
-    if (reason) return res.status(422).json({ error: `Run rejected: ${reason}` })
-    const time = Math.round(ms)
-    await pool.query(
-      `INSERT INTO trial_times (user_id, trial_id, ms) VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, trial_id) DO UPDATE SET ms = LEAST(trial_times.ms, $3), created_at = now()`,
-      [req.user.uid, trialId, time]
-    )
-    const { rows } = await pool.query(
-      `SELECT ms, (SELECT COUNT(*) + 1 FROM trial_times w WHERE w.trial_id = $2 AND w.ms < t.ms) AS rank,
-              (SELECT COUNT(*) FROM trial_times w WHERE w.trial_id = $2) AS total
-       FROM trial_times t WHERE t.user_id = $1 AND t.trial_id = $2`,
-      [req.user.uid, trialId]
-    )
-    res.json({ best: rows[0].ms, rank: Number(rows[0].rank), total: Number(rows[0].total) })
+    const { trialId } = req.body ?? {}
+    if (typeof trialId !== 'string' || !TRIAL_ROUTES[trialId]) return res.status(400).json({ error: 'Bad trial id' })
+    const nonce = crypto.randomUUID()
+    // one active run per user per trial; stale tokens get replaced
+    await pool.query('DELETE FROM trial_nonces WHERE user_id = $1 AND trial_id = $2', [req.user.uid, trialId])
+    await pool.query('INSERT INTO trial_nonces (nonce, user_id, trial_id) VALUES ($1, $2, $3)', [nonce, req.user.uid, trialId])
+    res.json({ nonce })
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Server error' })
   }
+})
+
+app.post('/api/trials', auth, async (req, res) => {
+  try {
+    const { trialId, ms, trace, nonce } = req.body ?? {}
+    if (typeof trialId !== 'string' || !/^trial-[a-z]+$/.test(trialId))
+      return res.status(400).json({ error: 'Bad trial id' })
+    if (!Number.isFinite(ms) || ms < 8000 || ms > 3_600_000)
+      return res.status(400).json({ error: 'Implausible time' })
+
+    // ---- run token: must exist, match, be fresh, and cover the claimed duration
+    if (typeof nonce !== 'string') return res.status(422).json({ error: 'Run rejected: No run token — start the trial again' })
+    const nrow = await pool.query(
+      'SELECT created_at FROM trial_nonces WHERE nonce = $1 AND user_id = $2 AND trial_id = $3',
+      [nonce, req.user.uid, trialId]
+    )
+    if (!nrow.rows.length) return res.status(422).json({ error: 'Run rejected: Invalid or already-used run token' })
+    await pool.query('DELETE FROM trial_nonces WHERE nonce = $1', [nonce]) // single use
+    const elapsedMs = Date.now() - new Date(nrow.rows[0].created_at).getTime()
+    if (elapsedMs > 45 * 60_000) return res.status(422).json({ error: 'Run rejected: Run token expired' })
+    if (elapsedMs < ms - 3000)
+      return res.status(422).json({ error: 'Run rejected: Claimed time exceeds the real run window' })
+
+    const reason = validateTrialRun(trialId, ms, trace)
+    if (reason) return res.status(422).json({ error: `Run rejected: ${reason}` })
+    const time = Math.round(ms)
+
+    // ---- statistical review: physically impossible or extreme outlier → flagged
+    let flagged = time < courseFloorMs(trialId)
+    if (!flagged) {
+      const { rows: pop } = await pool.query(
+        'SELECT ms FROM trial_times WHERE trial_id = $1 AND NOT flagged AND user_id <> $2',
+        [trialId, req.user.uid]
+      )
+      if (pop.length >= 5) {
+        const xs = pop.map(r => r.ms)
+        const mean = xs.reduce((a, b) => a + b, 0) / xs.length
+        const std = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length)
+        if (std > 0 && time < mean - 2.5 * std) flagged = true
+      }
+    }
+
+    await pool.query(
+      `INSERT INTO trial_times (user_id, trial_id, ms, flagged) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, trial_id) DO UPDATE SET
+         ms = LEAST(trial_times.ms, EXCLUDED.ms),
+         flagged = CASE WHEN EXCLUDED.ms < trial_times.ms THEN EXCLUDED.flagged ELSE trial_times.flagged END,
+         created_at = now()`,
+      [req.user.uid, trialId, time, flagged]
+    )
+    const { rows } = await pool.query(
+      `SELECT ms, flagged,
+              (SELECT COUNT(*) + 1 FROM trial_times w WHERE w.trial_id = $2 AND NOT w.flagged AND w.ms < t.ms) AS rank,
+              (SELECT COUNT(*) FROM trial_times w WHERE w.trial_id = $2 AND NOT w.flagged) AS total
+       FROM trial_times t WHERE t.user_id = $1 AND t.trial_id = $2`,
+      [req.user.uid, trialId]
+    )
+    const r = rows[0]
+    res.json({
+      best: r.ms,
+      flagged: r.flagged,
+      rank: r.flagged ? null : Number(r.rank),
+      total: Number(r.total),
+    })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// ---- admin review of flagged times ----
+
+function adminOk(req) {
+  return ADMIN_KEY && req.query.key === ADMIN_KEY
+}
+
+app.get('/api/admin/flagged', async (req, res) => {
+  if (!adminOk(req)) return res.status(403).json({ error: 'Forbidden' })
+  const { rows } = await pool.query(`
+    SELECT u.username, t.user_id, t.trial_id, t.ms, t.created_at
+    FROM trial_times t JOIN users u ON u.id = t.user_id
+    WHERE t.flagged ORDER BY t.created_at DESC LIMIT 100
+  `)
+  res.json({ flagged: rows })
+})
+
+app.post('/api/admin/resolve', async (req, res) => {
+  if (!adminOk(req)) return res.status(403).json({ error: 'Forbidden' })
+  const { userId, trialId, action } = req.body ?? {}
+  if (action === 'approve') {
+    await pool.query('UPDATE trial_times SET flagged = false WHERE user_id = $1 AND trial_id = $2', [userId, trialId])
+  } else if (action === 'remove') {
+    await pool.query('DELETE FROM trial_times WHERE user_id = $1 AND trial_id = $2', [userId, trialId])
+  } else {
+    return res.status(400).json({ error: 'action must be approve or remove' })
+  }
+  res.json({ ok: true })
 })
 
 // top-3 per trial in one call, plus the caller's own bests when authed
@@ -207,7 +313,7 @@ app.get('/api/trials/summary', async (req, res) => {
       SELECT trial_id, username, ms FROM (
         SELECT t.trial_id, u.username, t.ms,
                ROW_NUMBER() OVER (PARTITION BY t.trial_id ORDER BY t.ms ASC) AS rn
-        FROM trial_times t JOIN users u ON u.id = t.user_id
+        FROM trial_times t JOIN users u ON u.id = t.user_id WHERE NOT t.flagged
       ) ranked WHERE rn <= 3 ORDER BY trial_id, ms ASC
     `)
     const boards = {}

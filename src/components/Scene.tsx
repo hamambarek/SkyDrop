@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber'
 import { Stars } from '@react-three/drei'
-import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
+import { Bloom, EffectComposer, SMAA, Vignette } from '@react-three/postprocessing'
 import { Suspense } from 'react'
 import { THEMES } from '../game/themes'
 import { useGame } from '../state/store'
@@ -50,6 +50,7 @@ export function Scene() {
 
       {quality === 'high' && (
         <EffectComposer multisampling={0}>
+          <SMAA />
           <Bloom mipmapBlur intensity={theme.bloom} luminanceThreshold={0.85} luminanceSmoothing={0.2} />
           <Vignette eskil={false} offset={0.18} darkness={theme.id === 'day' ? 0.45 : 0.78} />
         </EffectComposer>

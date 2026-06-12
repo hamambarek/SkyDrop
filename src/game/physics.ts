@@ -169,8 +169,9 @@ export function stepSimulation(dt: number) {
   if (!dead) {
     const sin = Math.sin(runtime.yaw)
     const cos = Math.cos(runtime.yaw)
-    const ax = (sin * inp.forward + cos * inp.strafe) * thrust
-    const az = (cos * inp.forward - sin * inp.strafe) * thrust
+    // forward F = (sin, cos); screen-right R = F × up = (-cos, sin)
+    const ax = (sin * inp.forward - cos * inp.strafe) * thrust
+    const az = (cos * inp.forward + sin * inp.strafe) * thrust
     runtime.vel.x += ax * dt
     runtime.vel.z += az * dt
     runtime.vel.y += inp.lift * lift * dt
@@ -328,7 +329,8 @@ export function stepSimulation(dt: number) {
 
   // visual tilt
   const targetPitch = THREE.MathUtils.clamp(inp.forward * (boosting ? 0.5 : 0.38), -0.55, 0.55)
-  const targetRoll = THREE.MathUtils.clamp(-inp.strafe * 0.32 - inp.yaw * 0.12, -0.4, 0.4)
+  // bank INTO strafes and turns (positive local-Z roll dips the right side)
+  const targetRoll = THREE.MathUtils.clamp(inp.strafe * 0.32 + inp.yaw * 0.12, -0.4, 0.4)
   runtime.tilt.pitch += (targetPitch - runtime.tilt.pitch) * Math.min(1, 8 * dt)
   runtime.tilt.roll += (targetRoll - runtime.tilt.roll) * Math.min(1, 8 * dt)
   runtime.rotorSpeed = dead ? runtime.rotorSpeed * (1 - dt) : 18 + throttle * 26 + (boosting ? 14 : 0)

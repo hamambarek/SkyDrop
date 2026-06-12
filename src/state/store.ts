@@ -457,6 +457,9 @@ export const useGame = create<Store>()(
             api
               .submitTrial(token, m.trialId, ms)
               .then(r => {
+                // the server's stored best is authoritative — heals stale local bests
+                const tb = get().trialBest
+                if (tb[m.trialId!] !== r.best) set({ trialBest: { ...tb, [m.trialId!]: r.best } })
                 const cur = get().result
                 if (cur?.trialMs === ms) set({ result: { ...cur, trialRank: { rank: r.rank, total: r.total } } })
               })

@@ -21,7 +21,7 @@ import { fmtMs } from '../game/trials'
 
 export type Screen = 'menu' | 'game'
 export type MissionPhase = 'toPickup' | 'toStop'
-export type Panel = null | 'missions' | 'story' | 'garage' | 'shop' | 'achievements' | 'settings' | 'factions' | 'account' | 'trials'
+export type Panel = null | 'missions' | 'story' | 'garage' | 'shop' | 'achievements' | 'settings' | 'factions' | 'account' | 'trials' | 'guide'
 
 export interface Toast {
   id: number

@@ -183,8 +183,8 @@ export function PlayerDrone() {
           <mesh material={bodyMat} castShadow>
             <boxGeometry args={[bw, bh, bd]} />
           </mesh>
-          {/* cockpit accent strip */}
-          <mesh material={accentMat} position={[0, bh * 0.25, -bd * 0.32]}>
+          {/* cockpit accent strip — on the nose (local +Z is forward) */}
+          <mesh material={accentMat} position={[0, bh * 0.25, bd * 0.32]}>
             <boxGeometry args={[bw * 0.7, bh * 0.35, bd * 0.18]} />
           </mesh>
           {/* belly ring light */}
@@ -206,13 +206,13 @@ export function PlayerDrone() {
               </mesh>
             </group>
           ))}
-          {/* boost thrusters (rear pair, glow with boost heat) */}
+          {/* boost thrusters — rear pair (local -Z), exhaust cones pointing backward */}
           {[-bw * 0.3, bw * 0.3].map((x, i) => (
             <mesh
               key={i}
               ref={el => el && (thrusterRefs.current[i] = el)}
-              position={[x, -bh * 0.1, bd * 0.6]}
-              rotation={[Math.PI / 2, 0, 0]}
+              position={[x, -bh * 0.1, -bd * 0.6]}
+              rotation={[-Math.PI / 2, 0, 0]}
               visible={false}
             >
               <coneGeometry args={[0.22, 1.6, 8]} />

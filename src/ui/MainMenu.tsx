@@ -1,7 +1,7 @@
 import { levelFromXp } from '../game/constants'
 import { useGame } from '../state/store'
 
-const NAV: { panel: 'missions' | 'story' | 'trials' | 'garage' | 'shop' | 'factions' | 'achievements'; icon: string; label: string; sub: string }[] = [
+const NAV: { panel: 'missions' | 'story' | 'trials' | 'garage' | 'shop' | 'factions' | 'achievements' | 'guide'; icon: string; label: string; sub: string }[] = [
   { panel: 'missions', icon: '📋', label: 'Contracts', sub: 'Daily · elite · open board' },
   { panel: 'story', icon: '📖', label: 'Story', sub: '8 chapters, all free' },
   { panel: 'trials', icon: '⏱', label: 'Time Trials', sub: 'Global speed leaderboards' },
@@ -9,6 +9,7 @@ const NAV: { panel: 'missions' | 'story' | 'trials' | 'garage' | 'shop' | 'facti
   { panel: 'shop', icon: '💎', label: 'Shop', sub: 'Cosmetics, never power' },
   { panel: 'factions', icon: '🤝', label: 'Factions', sub: 'Reputation & standing' },
   { panel: 'achievements', icon: '🏅', label: 'Records', sub: 'Achievements · rankings' },
+  { panel: 'guide', icon: '📘', label: 'Pilot Guide', sub: 'Every key & mechanic explained' },
 ]
 
 export function MainMenu() {

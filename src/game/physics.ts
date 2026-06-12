@@ -163,13 +163,14 @@ export function stepSimulation(dt: number) {
   const dead = runtime.battery <= 0
 
   // control forces -----------------------------------------------------------
-  runtime.yaw -= inp.yaw * yawRate * dt
+  // convention: forward = local +Z = (sin yaw, cos yaw); turning right increases yaw
+  runtime.yaw += inp.yaw * yawRate * dt
 
   if (!dead) {
     const sin = Math.sin(runtime.yaw)
     const cos = Math.cos(runtime.yaw)
-    const ax = (sin * -inp.forward + cos * inp.strafe) * thrust
-    const az = (cos * -inp.forward - sin * inp.strafe) * thrust
+    const ax = (sin * inp.forward + cos * inp.strafe) * thrust
+    const az = (cos * inp.forward - sin * inp.strafe) * thrust
     runtime.vel.x += ax * dt
     runtime.vel.z += az * dt
     runtime.vel.y += inp.lift * lift * dt
@@ -327,7 +328,7 @@ export function stepSimulation(dt: number) {
 
   // visual tilt
   const targetPitch = THREE.MathUtils.clamp(inp.forward * (boosting ? 0.5 : 0.38), -0.55, 0.55)
-  const targetRoll = THREE.MathUtils.clamp(-inp.strafe * 0.32 + inp.yaw * 0.12, -0.4, 0.4)
+  const targetRoll = THREE.MathUtils.clamp(-inp.strafe * 0.32 - inp.yaw * 0.12, -0.4, 0.4)
   runtime.tilt.pitch += (targetPitch - runtime.tilt.pitch) * Math.min(1, 8 * dt)
   runtime.tilt.roll += (targetRoll - runtime.tilt.roll) * Math.min(1, 8 * dt)
   runtime.rotorSpeed = dead ? runtime.rotorSpeed * (1 - dt) : 18 + throttle * 26 + (boosting ? 14 : 0)

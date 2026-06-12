@@ -584,6 +584,118 @@ function FactionsPanel() {
   )
 }
 
+// ---------------- Pilot Guide ----------------
+
+function K({ code }: { code: string | null }) {
+  return <kbd className="gk">{keyLabel(code)}</kbd>
+}
+
+function GuidePanel() {
+  const c = useGame(s => s.controls)
+  return (
+    <Sheet title="📘 Pilot Guide">
+      <div className="guide-grid">
+        <div className="guide-block">
+          <h3>🛸 Flight</h3>
+          <ul>
+            <li>
+              <K code={c.moveForward[0]} />
+              <K code={c.moveLeft[0]} />
+              <K code={c.moveBack[0]} />
+              <K code={c.moveRight[0]} /> — fly forward / strafe left / back / strafe right
+            </li>
+            <li>
+              <K code={c.ascend[0]} /> climb · <K code={c.descend[0]} /> descend
+            </li>
+            <li>
+              <K code={c.yawLeft[0]} /> turn left · <K code={c.yawRight[0]} /> turn right
+            </li>
+            <li>Landing on the ground is always safe — only fast impacts with buildings destroy the drone.</li>
+          </ul>
+        </div>
+
+        <div className="guide-block">
+          <h3>⚡ Boost &amp; Brake</h3>
+          <ul>
+            <li>
+              <K code={c.boost[0]} /> or <K code={c.boost[1]} /> — <b>boost</b>: +50% top speed, drains extra battery. Watch
+              the rear thrusters glow.
+            </li>
+            <li>
+              <K code={c.brake[0]} /> or <K code={c.brake[1]} /> — <b>air brake</b>: hard deceleration for tight landings and
+              dodges.
+            </li>
+            <li>Cyan boost rings in Vela Business Core fling you forward for free — chain them on express runs.</li>
+          </ul>
+        </div>
+
+        <div className="guide-block">
+          <h3>🎥 Camera &amp; HUD</h3>
+          <ul>
+            <li>
+              <K code={c.cameraToggle[0]} /> — cycle camera: <b>chase</b> (default) → <b>near</b> (close action cam) →{' '}
+              <b>top</b> (overhead navigation).
+            </li>
+            <li>
+              <K code={c.minimap[0]} /> or click the minimap — toggle <b>LOCAL</b> (380m radar) / <b>CITY</b> (whole map).
+            </li>
+            <li>
+              <K code={c.pause[0]} /> / <K code={c.pause[1]} /> — pause. The ⏸ 🎥 🗺 buttons top-right do the same by mouse.
+            </li>
+            <li>Top tape = compass heading. Console gauge = artificial horizon (your tilt). Mint edge arrow = target is off-screen; follow it.</li>
+          </ul>
+        </div>
+
+        <div className="guide-block">
+          <h3>📦 Deliveries</h3>
+          <ul>
+            <li>Follow the light pillar (blue = pickup, mint = drop-off). <b>Hover inside it, slow,</b> for ~1.5s to grab or deliver.</li>
+            <li>Chain contracts have several numbered drops — the next one lights up after each delivery.</li>
+            <li>Bonuses stack: perfect flight (no crash), early delivery, weather hazard pay, faction standing, 🔥 streak.</li>
+            <li>Fragile cargo dies in any crash. Timed contracts fail at 0s. You can always retry.</li>
+          </ul>
+        </div>
+
+        <div className="guide-block">
+          <h3>🔋 Energy</h3>
+          <ul>
+            <li>Land on a glowing pad ring (ground or rooftop) and stay still to recharge.</li>
+            <li>Red cylinders are <b>no-fly zones</b> — security jamming drains your battery fast inside them.</li>
+            <li>Ion storms slowly drain charge (Storm Plating upgrade and the Aether frame resist it).</li>
+            <li>Battery empty = forced descent, then a slow emergency trickle. You are never hard-stuck.</li>
+          </ul>
+        </div>
+
+        <div className="guide-block">
+          <h3>🦇 Stealth &amp; Patrols</h3>
+          <ul>
+            <li>Red drones with glowing scan fields patrol the Subgrid and Halcyon Secure Zone.</li>
+            <li>On <b>stealth contracts</b>, time inside a scan fills the 📡 meter — full meter burns the contract.</li>
+            <li>The meter decays once you break contact. Stealth-class frames (Manta, Umbra) are scanned far slower.</li>
+          </ul>
+        </div>
+
+        <div className="guide-block">
+          <h3>⏱ Time Trials</h3>
+          <ul>
+            <li>Fixed courses, one per district, each requiring a specific frame — same route for every pilot in the world.</li>
+            <li>The clock is the score: your best time posts to the global leaderboard (log in to compete).</li>
+          </ul>
+        </div>
+
+        <div className="guide-block">
+          <h3>🎮 Gamepad &amp; Touch</h3>
+          <ul>
+            <li>Gamepad: left stick fly · right stick turn + altitude · A/B up/down · triggers boost/brake.</li>
+            <li>Touch: left half = move stick, right half = turn &amp; altitude stick.</li>
+            <li>Every keyboard/mouse binding is remappable in Settings → Controls.</li>
+          </ul>
+        </div>
+      </div>
+    </Sheet>
+  )
+}
+
 // ---------------- Time Trials ----------------
 
 function TrialsPanel() {
@@ -1033,6 +1145,8 @@ export function Panels() {
       return <FactionsPanel />
     case 'trials':
       return <TrialsPanel />
+    case 'guide':
+      return <GuidePanel />
     case 'account':
       return <AccountPanel />
     case 'achievements':

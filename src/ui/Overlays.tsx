@@ -256,6 +256,15 @@ export function PauseMenu() {
             ▶ Resume
           </button>
           <button
+            className="btn"
+            onClick={() => {
+              setPaused(false)
+              useGame.getState().setPanel('guide')
+            }}
+          >
+            📘 Pilot Guide
+          </button>
+          <button
             className="btn danger"
             onClick={() => {
               setPaused(false)

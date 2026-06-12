@@ -1743,3 +1743,47 @@ h1, h2, h3 {
     inset -4px 0 0 rgba(57, 194, 255, 0.18);
   mix-blend-mode: screen;
 }
+
+/* ---------- pilot guide ---------- */
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 12px;
+}
+.guide-block {
+  background: rgba(20, 28, 50, 0.45);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--cyan);
+  border-radius: 3px;
+  padding: 13px 16px;
+}
+.guide-block h3 {
+  font-size: 13px;
+  color: var(--cyan);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.guide-block ul {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.guide-block li {
+  font-size: 13.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.guide-block li b { color: var(--text); }
+.gk {
+  background: rgba(57, 194, 255, 0.12);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  color: var(--text);
+  margin: 0 2px;
+  white-space: nowrap;
+}
